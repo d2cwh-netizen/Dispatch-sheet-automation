@@ -1,0 +1,4 @@
+Product SKU Code,Qty,Product Name,Brand Name,Channel Order ID,Shipment Tracker,Order Status,Total,Order Type
+SKU-AMZ-201,1,"Mechanical Keyboard RGB",KeyCraft,AMZ-ORD-9021,TRK-EKART-021,Shipped,3499.00,Prepaid
+SKU-AMZ-202,2,"Ultra-Wide Gaming Pad",GlideMaster,AMZ-ORD-9022,TRK-DELHIVERY-022,Shipped,899.00,COD
+SKU-AMZ-203,1,"Noise Cancelling Headphones",AcoustiX,AMZ-ORD-9023,TRK-BLUEDART-023,Shipped,5999.00,Prepaid

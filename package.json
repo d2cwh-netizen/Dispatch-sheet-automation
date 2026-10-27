@@ -1,0 +1,21 @@
+{
+  "name": "dispatch-sheet-automation",
+  "version": "1.0.0",
+  "description": "Automated Dispatch Sheet tool for multi-marketplace order ingestion into Google Sheets",
+  "scripts": {
+    "setup": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "setup:backend": "npm --prefix backend install",
+    "setup:frontend": "npm --prefix frontend install",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "start": "npm run dev",
+    "test": "cd backend && npm test",
+    "generate-samples": "node sample-files/generate-samples.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "author": "",
+  "license": "ISC"
+}
