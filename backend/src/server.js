@@ -7,6 +7,7 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
 
+const fs = require('fs');
 const uploadRoutes = require('./routes/uploadRoutes');
 const googleSheetsConfig = require('./config/googleSheetsConfig');
 
@@ -25,15 +26,35 @@ app.use(express.urlencoded({ extended: true }));
 // Mount API routes
 app.use('/api', uploadRoutes);
 
-// Root diagnostic route
-app.get('/', (req, res) => {
-  res.json({
-    name: 'Dispatch Sheet Automation API',
-    status: 'running',
-    version: '1.0.0',
-    documentation: 'See README.md for setup and API details',
+// Resolve built frontend directory if present (production / Render deployment)
+const candidateDistPaths = [
+  path.resolve(__dirname, '../../frontend/dist'),
+  path.resolve(process.cwd(), 'frontend/dist'),
+];
+const frontendDistPath = candidateDistPaths.find((p) => fs.existsSync(p));
+
+if (frontendDistPath) {
+  // Serve static assets from Vite build
+  app.use(express.static(frontendDistPath));
+
+  // SPA fallback for non-API navigation requests
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
   });
-});
+} else {
+  // Root diagnostic route when running backend standalone without built frontend
+  app.get('/', (req, res) => {
+    res.json({
+      name: 'Dispatch Sheet Automation API',
+      status: 'running',
+      version: '1.0.0',
+      documentation: 'See README.md for setup and API details',
+    });
+  });
+}
 
 // Global error handler
 app.use((err, req, res, next) => {

@@ -174,3 +174,20 @@
 
 **Impact:** Every row appended across any marketplace tab now consistently displays the exact calendar date selected by the user on the web form in standard `YYYY-MM-DD` format, preventing raw serial numbers from appearing.
 
+---
+
+## [2026-10-28] Unified single-service deployment configuration for Render (PaaS)
+
+**Context:** The user requested running the entire application on Render without altering existing functionality or local development workflows. In production, Vite dev server proxies do not exist, root `npm start` previously defaulted to `npm run dev`, and Google Cloud Service Account keys cannot be safely committed to source control.
+
+**Decision:**
+1. **Unified Express serving:** Updated `server.js` so that when `frontend/dist` exists (built by Vite during production deployment), Express serves the static React bundle and provides SPA fallback routing for any non-API routes. Diagnostic API routes remain intact when running without a built frontend.
+2. **Flexible credential loading in `googleSheetsConfig.js`:** Added support for `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (and base64) environment variables, while retaining full backwards compatibility with local disk files and adding automatic discovery for Render's native Secret Files mount path (`/etc/secrets/service-account-key.json`). Also sanitized escaped newlines in private keys.
+3. **Production build and start scripts in `package.json`:** Added `"build"`, `"build:all"`, and configured `"start": "node backend/src/server.js"`, while preserving `"dev"` for local live-reload development. Added `render.yaml` blueprint.
+4. **Resilient test assertions:** Updated `batchUpload.test.js` to dynamically evaluate expected sheet tab names using `googleSheetsConfig.getTabName()` rather than hardcoded static strings, ensuring tests remain green under custom `.env` tab configurations.
+
+**Alternatives considered:**
+- Deploying frontend and backend as two separate services on Render (Static Site + Web Service): rejected because unified serving eliminates cross-origin CORS latency, eliminates frontend environment URL configuration, and operates within a single free/hobby service tier.
+
+**Impact:** The repository can now be deployed directly to Render with zero code changes, supporting either Secret Files or raw JSON environment variables, while remaining 100% identical in local development behavior.
+

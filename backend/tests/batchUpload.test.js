@@ -4,6 +4,7 @@ process.env.MOCK_GOOGLE_SHEETS = 'true';
 const request = require('supertest');
 const app = require('../src/server');
 const dispatchSheetService = require('../src/services/dispatchSheetService');
+const googleSheetsConfig = require('../src/config/googleSheetsConfig');
 
 jest.setTimeout(15000);
 
@@ -62,14 +63,14 @@ describe('Batch Upload & Confirm Integration Tests', () => {
       const amazonSheet = res.body.sheets.find((s) => s.marketplace === 'amazon');
       expect(amazonSheet).toBeDefined();
       expect(amazonSheet.summary.newRecords).toBe(2);
-      expect(amazonSheet.targetTabName).toBe('Amazon');
+      expect(amazonSheet.targetTabName).toBe(googleSheetsConfig.getTabName('amazon'));
       expect(amazonSheet.previewToken).toBeDefined();
 
       // Verify Flipkart sheet preview
       const flipkartSheet = res.body.sheets.find((s) => s.marketplace === 'flipkart');
       expect(flipkartSheet).toBeDefined();
       expect(flipkartSheet.summary.newRecords).toBe(2);
-      expect(flipkartSheet.targetTabName).toBe('Flipkart');
+      expect(flipkartSheet.targetTabName).toBe(googleSheetsConfig.getTabName('flipkart'));
       expect(flipkartSheet.previewToken).toBeDefined();
     });
 
@@ -175,10 +176,10 @@ describe('Batch Upload & Confirm Integration Tests', () => {
       const fkResult = confirmRes.body.sheets.find((s) => s.marketplace === 'flipkart');
 
       expect(amzResult.recordsAdded).toBe(2);
-      expect(amzResult.tabName).toBe('Amazon');
+      expect(amzResult.tabName).toBe(googleSheetsConfig.getTabName('amazon'));
 
       expect(fkResult.recordsAdded).toBe(2);
-      expect(fkResult.tabName).toBe('Flipkart');
+      expect(fkResult.tabName).toBe(googleSheetsConfig.getTabName('flipkart'));
 
       // 3. Verify deduplication now catches them if re-uploaded
       const rePreview = await request(app)

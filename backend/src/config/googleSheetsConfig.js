@@ -94,42 +94,90 @@ function initGoogleSheets() {
     return;
   }
 
-  // Resolve service account key path, checking common locations
-  const candidatePaths = [
-    path.isAbsolute(keyPathEnv) ? keyPathEnv : path.resolve(process.cwd(), keyPathEnv),
-    path.resolve(__dirname, '../../', keyPathEnv),
-    path.resolve(__dirname, '../../secrets/service-account-key.json'),
-    path.resolve(process.cwd(), 'secrets/service-account-key.json'),
-    path.resolve(process.cwd(), '../backend/secrets/service-account-key.json'),
-  ];
+  let parsedKey = null;
+  let resolvedKeyPath = null;
+  let keySourceDesc = '';
 
-  const resolvedKeyPath = candidatePaths.find((p) => fs.existsSync(p));
+  // 1. Check if raw JSON credentials provided via environment variable (ideal for Render / cloud deployments)
+  const rawKeyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS;
+  const rawKeyBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
 
-  if (!resolvedKeyPath) {
-    configError = `Service account key file not found. Checked locations: ${candidatePaths.join(', ')}. Please verify GOOGLE_SERVICE_ACCOUNT_KEY_PATH or place key in secrets/.`;
-    console.warn(`[GoogleSheetsConfig] WARNING: ${configError}`);
-    return;
-  }
+  if (rawKeyJson && rawKeyJson.trim()) {
+    try {
+      parsedKey = JSON.parse(rawKeyJson.trim());
+      keySourceDesc = 'GOOGLE_SERVICE_ACCOUNT_KEY_JSON environment variable';
+    } catch (e) {
+      configError = `Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY_JSON as JSON: ${e.message}`;
+      console.warn(`[GoogleSheetsConfig] WARNING: ${configError}`);
+      return;
+    }
+  } else if (rawKeyBase64 && rawKeyBase64.trim()) {
+    try {
+      const decoded = Buffer.from(rawKeyBase64.trim(), 'base64').toString('utf8');
+      parsedKey = JSON.parse(decoded);
+      keySourceDesc = 'GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 environment variable';
+    } catch (e) {
+      configError = `Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 as JSON: ${e.message}`;
+      console.warn(`[GoogleSheetsConfig] WARNING: ${configError}`);
+      return;
+    }
+  } else {
+    // 2. Resolve service account key path from disk, checking common locations and Render secret files
+    const candidatePaths = [
+      path.isAbsolute(keyPathEnv) ? keyPathEnv : path.resolve(process.cwd(), keyPathEnv),
+      path.resolve(__dirname, '../../', keyPathEnv),
+      path.resolve(__dirname, '../../secrets/service-account-key.json'),
+      path.resolve(process.cwd(), 'secrets/service-account-key.json'),
+      path.resolve(process.cwd(), '../backend/secrets/service-account-key.json'),
+      '/etc/secrets/service-account-key.json',
+      '/etc/secrets/google-service-account-key.json',
+    ];
 
-  try {
-    const rawKey = fs.readFileSync(resolvedKeyPath, 'utf8');
-    const parsedKey = JSON.parse(rawKey);
-    serviceAccountEmail = parsedKey.client_email;
+    resolvedKeyPath = candidatePaths.find((p) => fs.existsSync(p));
 
-    if (!serviceAccountEmail || !parsedKey.private_key) {
-      configError = `Service account key file at "${resolvedKeyPath}" is missing required fields (client_email or private_key).`;
+    if (!resolvedKeyPath) {
+      configError = `Service account credentials not found. Provide GOOGLE_SERVICE_ACCOUNT_KEY_JSON in environment or place key file in secrets/. Checked paths: ${candidatePaths.slice(0, 5).join(', ')}`;
       console.warn(`[GoogleSheetsConfig] WARNING: ${configError}`);
       return;
     }
 
-    const auth = new google.auth.GoogleAuth({
-      keyFile: resolvedKeyPath,
-      scopes: SCOPES,
-    });
+    try {
+      const rawKey = fs.readFileSync(resolvedKeyPath, 'utf8');
+      parsedKey = JSON.parse(rawKey);
+      keySourceDesc = `key file at "${resolvedKeyPath}"`;
+    } catch (err) {
+      configError = `Failed to read or parse key file at "${resolvedKeyPath}": ${err.message}`;
+      console.error(`[GoogleSheetsConfig] ERROR: ${configError}`);
+      return;
+    }
+  }
+
+  try {
+    serviceAccountEmail = parsedKey.client_email;
+
+    if (!serviceAccountEmail || !parsedKey.private_key) {
+      configError = `Service account credentials from ${keySourceDesc} are missing required fields (client_email or private_key).`;
+      console.warn(`[GoogleSheetsConfig] WARNING: ${configError}`);
+      return;
+    }
+
+    // Fix escaped newlines if private_key was passed in an environment variable
+    if (typeof parsedKey.private_key === 'string' && parsedKey.private_key.includes('\\n')) {
+      parsedKey.private_key = parsedKey.private_key.replace(/\\n/g, '\n');
+    }
+
+    const authOptions = { scopes: SCOPES };
+    if (resolvedKeyPath) {
+      authOptions.keyFile = resolvedKeyPath;
+    } else {
+      authOptions.credentials = parsedKey;
+    }
+
+    const auth = new google.auth.GoogleAuth(authOptions);
 
     sheetsClient = google.sheets({ version: 'v4', auth });
     isConfigured = true;
-    console.log(`[GoogleSheetsConfig] Authenticated successfully with service account: ${serviceAccountEmail}`);
+    console.log(`[GoogleSheetsConfig] Authenticated successfully with service account: ${serviceAccountEmail} (${keySourceDesc})`);
     console.log(`[GoogleSheetsConfig] Target Sheet ID: ${spreadsheetId}`);
     console.log(`[GoogleSheetsConfig] Default Tab Name: ${getTabName()}`);
     const tabMap = getAllTabNames();
@@ -137,7 +185,7 @@ function initGoogleSheets() {
       console.log(`[GoogleSheetsConfig] Tab for [${m}]: "${t}"`);
     }
   } catch (err) {
-    configError = `Failed to parse or initialize Google Sheets client from key file: ${err.message}`;
+    configError = `Failed to initialize Google Sheets client from ${keySourceDesc}: ${err.message}`;
     console.error(`[GoogleSheetsConfig] ERROR: ${configError}`);
   }
 }

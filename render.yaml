@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: dispatch-sheet-automation
+    env: node
+    plan: free
+    buildCommand: npm run setup && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 10000
+      - key: GOOGLE_SHEET_ID
+        sync: false
+      - key: GOOGLE_SHEET_TAB_NAME
+        value: Fallback Sheet
+      - key: GOOGLE_SHEET_TAB_NAME_AMAZON
+        value: Amazon XIRA
+      - key: GOOGLE_SHEET_TAB_NAME_FLIPKART
+        value: Flipkart
+      - key: GOOGLE_SHEET_TAB_NAME_NYKAA
+        value: Nykaa
+      - key: GOOGLE_SHEET_TAB_NAME_MYNTRA
+        value: Myntra
